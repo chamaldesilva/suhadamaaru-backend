@@ -1,0 +1,416 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model appointment_categories {
+  id                Int                 @id @default(autoincrement())
+  name              String              @unique @db.VarChar(100)
+  description       String?
+  grade_range       grade_range_enum?   @default(grade_6_11)
+  requires_subject  Boolean?            @default(true)
+  is_active         Boolean?            @default(true)
+  created_at        DateTime?           @default(now()) @db.Timestamp(6)
+  subjects          subjects[]
+  transfer_requests transfer_requests[]
+  users             users[]
+
+  @@index([is_active], map: "idx_appointment_categories_active")
+}
+
+model audit_logs {
+  id          BigInt    @id @default(autoincrement())
+  user_id     String?   @db.Uuid
+  action      String    @db.VarChar(100)
+  entity_type String?   @db.VarChar(50)
+  entity_id   String?   @db.Uuid
+  old_value   Json?
+  new_value   Json?
+  ip_address  String?   @db.Inet
+  user_agent  String?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  users       users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_audit_logs_created")
+  @@index([entity_type, entity_id], map: "idx_audit_logs_entity")
+  @@index([user_id], map: "idx_audit_logs_user")
+}
+
+model districts {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(100)
+  province_id Int
+  provinces   provinces @relation(fields: [province_id], references: [id], onUpdate: NoAction)
+  zones       zones[]
+
+  @@unique([name, province_id])
+  @@index([province_id], map: "idx_districts_province")
+}
+
+model divisions {
+  id      Int       @id @default(autoincrement())
+  name    String    @db.VarChar(100)
+  zone_id Int
+  zones   zones     @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  schools schools[]
+
+  @@unique([name, zone_id])
+  @@index([zone_id], map: "idx_divisions_zone")
+}
+
+model match_messages {
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  match_id         String           @db.Uuid
+  sender_id        String           @db.Uuid
+  message_text     String
+  is_read          Boolean?         @default(false)
+  created_at       DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?        @default(now()) @db.Timestamp(6)
+  transfer_matches transfer_matches @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users            users            @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_match_messages_created")
+  @@index([match_id], map: "idx_match_messages_match")
+  @@index([sender_id], map: "idx_match_messages_sender")
+  @@index([is_read], map: "idx_match_messages_read")
+}
+
+model notifications {
+  id                  String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id             String                 @db.Uuid
+  type                notification_type_enum
+  title               String                 @db.VarChar(255)
+  body                String
+  related_entity_type String?                @db.VarChar(50)
+  related_entity_id   String?                @db.Uuid
+  is_read             Boolean?               @default(false)
+  sent_via            String[]               @default(["push", "email"]) @db.VarChar(20)
+  created_at          DateTime?              @default(now()) @db.Timestamp(6)
+  users               users                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_notifications_created")
+  @@index([user_id], map: "idx_notifications_user")
+  @@index([is_read], map: "idx_notifications_read")
+}
+
+model provinces {
+  id        Int         @id @default(autoincrement())
+  name      String      @unique @db.VarChar(100)
+  districts districts[]
+}
+
+model schools {
+  id                           Int                            @id @default(autoincrement())
+  name                         String                         @db.VarChar(255)
+  type                         school_type_enum?
+  division_id                  Int
+  is_active                    Boolean?                       @default(true)
+  created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  divisions                    divisions                      @relation(fields: [division_id], references: [id], onUpdate: NoAction)
+  transfer_request_preferences transfer_request_preferences[]
+  transfer_requests            transfer_requests[]
+  users                        users[]
+
+  @@unique([name, type, division_id])
+  @@index([division_id], map: "idx_schools_division")
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "idx_schools_name_trgm", type: Gin)
+}
+
+model subjects {
+  id                        Int                         @id @default(autoincrement())
+  name                      String                      @db.VarChar(255)
+  appointment_category_id   Int
+  is_active                 Boolean?                    @default(true)
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  appointment_categories    appointment_categories      @relation(fields: [appointment_category_id], references: [id], onUpdate: NoAction)
+  transfer_request_subjects transfer_request_subjects[]
+  user_subjects             user_subjects[]
+
+  @@unique([name, appointment_category_id])
+  @@index([appointment_category_id], map: "idx_subjects_category")
+}
+
+model transfer_match_participants {
+  id                  Int                        @id @default(autoincrement())
+  match_id            String                     @db.Uuid
+  transfer_request_id String                     @db.Uuid
+  user_id             String                     @db.Uuid
+  swap_position       Int?
+  response_status     participant_response_enum? @default(pending)
+  responded_at        DateTime?                  @db.Timestamp(6)
+  created_at          DateTime?                  @default(now()) @db.Timestamp(6)
+  transfer_matches    transfer_matches           @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  transfer_requests   transfer_requests          @relation(fields: [transfer_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users               users                      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([match_id, transfer_request_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model transfer_matches {
+  id                          String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  match_type                  match_type_enum?              @default(two_way)
+  compatibility_score         Int?
+  match_algorithm_version     String?                       @default("v1.0") @db.VarChar(20)
+  status                      match_status_enum?            @default(pending)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  expires_at                  DateTime?                     @default(dbgenerated("(now() + '7 days'::interval)")) @db.Timestamp(6)
+  updated_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  match_messages              match_messages[]
+  transfer_match_participants transfer_match_participants[]
+
+  @@index([created_at], map: "idx_matches_created")
+  @@index([status], map: "idx_matches_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model transfer_request_preferences {
+  id                  Int               @id @default(autoincrement())
+  transfer_request_id String            @db.Uuid
+  preferred_school_id Int
+  preference_rank     Int
+  created_at          DateTime?         @default(now()) @db.Timestamp(6)
+  schools             schools           @relation(fields: [preferred_school_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transfer_requests   transfer_requests @relation(fields: [transfer_request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([transfer_request_id, preference_rank])
+  @@unique([transfer_request_id, preferred_school_id])
+  @@index([transfer_request_id], map: "idx_tr_prefs_request")
+  @@index([preferred_school_id], map: "idx_tr_prefs_school")
+}
+
+model transfer_request_subjects {
+  id                  Int               @id @default(autoincrement())
+  transfer_request_id String            @db.Uuid
+  subject_id          Int
+  created_at          DateTime?         @default(now()) @db.Timestamp(6)
+  subjects            subjects          @relation(fields: [subject_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transfer_requests   transfer_requests @relation(fields: [transfer_request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([transfer_request_id, subject_id])
+  @@index([transfer_request_id], map: "idx_tr_subjects_request")
+  @@index([subject_id], map: "idx_tr_subjects_subject")
+}
+
+model transfer_requests {
+  id                           String                         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id                      String                         @db.Uuid
+  current_school_id            Int
+  appointment_category_id      Int
+  medium_of_instruction        medium_of_instruction_enum
+  transfer_reason              String
+  urgency_level                transfer_urgency_enum?         @default(normal)
+  geographic_flexibility       geographic_flexibility_enum?   @default(province_wide)
+  willing_temporary_transfer   Boolean?                       @default(false)
+  additional_notes             String?
+  status                       request_status_enum?           @default(draft)
+  submitted_at                 DateTime?                      @db.Timestamp(6)
+  expires_at                   DateTime?                      @db.Timestamp(6)
+  created_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime?                      @default(now()) @db.Timestamp(6)
+  deleted_at                   DateTime?                      @db.Timestamp(6)
+  transfer_match_participants  transfer_match_participants[]
+  transfer_request_preferences transfer_request_preferences[]
+  transfer_request_subjects    transfer_request_subjects[]
+  appointment_categories       appointment_categories         @relation(fields: [appointment_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  schools                      schools                        @relation(fields: [current_school_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                        users                          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([geographic_flexibility], map: "idx_transfer_requests_flexibility")
+  @@index([current_school_id], map: "idx_transfer_requests_school")
+  @@index([status], map: "idx_transfer_requests_status")
+  @@index([user_id], map: "idx_transfer_requests_user")
+}
+
+model user_preferences {
+  id                          Int       @id @default(autoincrement())
+  user_id                     String    @unique @db.Uuid
+  push_notifications_enabled  Boolean?  @default(true)
+  email_notifications_enabled Boolean?  @default(true)
+  profile_visibility          String?   @default("public") @db.VarChar(20)
+  data_sharing_consent        Boolean?  @default(false)
+  updated_at                  DateTime? @default(now()) @db.Timestamp(6)
+  users                       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_user_preferences_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_qualifications {
+  id                 Int       @id @default(autoincrement())
+  user_id            String    @db.Uuid
+  qualification_type String?   @db.VarChar(50)
+  institution        String?   @db.VarChar(255)
+  field_of_study     String?   @db.VarChar(255)
+  year_obtained      Int?
+  document_url       String?
+  is_verified        Boolean?  @default(false)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  users              users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, qualification_type])
+  @@index([user_id], map: "idx_user_qualifications_user")
+}
+
+model user_subjects {
+  id               Int       @id @default(autoincrement())
+  user_id          String    @db.Uuid
+  subject_id       Int
+  is_primary       Boolean?  @default(false)
+  years_experience Int?
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  subjects         subjects  @relation(fields: [subject_id], references: [id], onUpdate: NoAction)
+  users            users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, subject_id])
+  @@index([subject_id], map: "idx_user_subjects_subject")
+  @@index([user_id], map: "idx_user_subjects_user")
+}
+
+model users {
+  id                           String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                        String                        @unique @db.VarChar(255)
+  nic                          String?                       @unique @db.VarChar(15)
+  mobile                       String?                       @db.VarChar(15)
+  first_name                   String?                       @db.VarChar(100)
+  last_name                    String?                       @db.VarChar(100)
+  date_of_birth                DateTime?                     @db.Date
+  gender                       String?                       @db.VarChar(10)
+  auth_provider                String?                       @default("supabase") @db.VarChar(50)
+  appointment_date             DateTime?                     @db.Date
+  current_grade                teacher_grade_enum?           @default(class_3_grade_2)
+  service_bond_completed       Boolean?                      @default(false)
+  service_bond_remaining_years Int?
+  current_school_id            Int?
+  appointment_category_id      Int?
+  medium_of_instruction        medium_of_instruction_enum?   @default(sinhala)
+  emergency_contact_name       String?                       @db.VarChar(100)
+  emergency_contact_mobile     String?                       @db.VarChar(15)
+  profile_completed            Boolean?                      @default(false)
+  is_verified                  Boolean?                      @default(false)
+  is_active                    Boolean?                      @default(true)
+  role                         role_enum?                    @default(teacher)
+  created_at                   DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime?                     @default(now()) @db.Timestamp(6)
+  last_login_at                DateTime?                     @db.Timestamp(6)
+  deleted_at                   DateTime?                     @db.Timestamp(6)
+  profile_image_url            String?                       @db.VarChar(500)
+  profile_visible              Boolean?                      @default(true)
+  audit_logs                   audit_logs[]
+  match_messages               match_messages[]
+  notifications                notifications[]
+  transfer_match_participants  transfer_match_participants[]
+  transfer_requests            transfer_requests[]
+  user_preferences             user_preferences?
+  user_qualifications          user_qualifications[]
+  user_subjects                user_subjects[]
+  appointment_categories       appointment_categories?       @relation(fields: [appointment_category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  schools                      schools?                      @relation(fields: [current_school_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([email], map: "idx_users_email")
+  @@index([mobile], map: "idx_users_mobile")
+  @@index([nic], map: "idx_users_nic")
+  @@index([current_school_id], map: "idx_users_school")
+}
+
+model zones {
+  id          Int         @id @default(autoincrement())
+  name        String      @db.VarChar(100)
+  district_id Int
+  divisions   divisions[]
+  districts   districts   @relation(fields: [district_id], references: [id], onUpdate: NoAction)
+
+  @@unique([name, district_id])
+  @@index([district_id], map: "idx_zones_district")
+}
+
+enum geographic_flexibility_enum {
+  district_only
+  province_wide
+  nationwide
+}
+
+enum grade_range_enum {
+  grade_1_5
+  grade_6_11
+  grade_12_13
+  grade_1_13
+  all_grades
+  na
+}
+
+enum match_status_enum {
+  pending
+  active
+  accepted
+  rejected
+  expired
+}
+
+enum match_type_enum {
+  two_way
+  circular_three
+  circular_four
+}
+
+enum medium_of_instruction_enum {
+  sinhala
+  tamil
+  english
+}
+
+enum notification_type_enum {
+  match_created
+  match_accepted
+  match_rejected
+  message_received
+  request_expired
+  system_alert
+}
+
+enum participant_response_enum {
+  pending
+  accepted
+  rejected
+  withdrawn
+}
+
+enum request_status_enum {
+  draft
+  submitted
+  under_review
+  matched
+  accepted
+  rejected
+  withdrawn
+  completed
+  expired
+}
+
+enum role_enum {
+  admin
+  teacher
+  guest
+}
+
+enum school_type_enum {
+  national
+  provincial
+}
+
+enum teacher_grade_enum {
+  class_3_grade_2
+  class_3_grade_1
+  class_2_grade_2
+  class_2_grade_1
+  class_1
+}
+
+enum transfer_urgency_enum {
+  normal
+  high
+}
