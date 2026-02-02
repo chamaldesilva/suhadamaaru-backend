@@ -1,28 +1,28 @@
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
-import serverlessExpress from '@vendia/serverless-express';
-import express from 'express';
-import { json, urlencoded } from 'express';
+import express, { Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
 
-let cachedHandler: any;
+let app: express.Express;
 
-async function bootstrap() {
+async function bootstrap(): Promise<express.Express> {
   const expressApp = express();
   const adapter = new ExpressAdapter(expressApp);
 
-  const app = await NestFactory.create(AppModule, adapter);
+  const nestApp = await NestFactory.create(AppModule, adapter, {
+    logger: ['error', 'warn'],
+  });
 
-  app.use(json({ limit: '10mb' }));
-  app.use(urlencoded({ extended: true, limit: '10mb' }));
+  nestApp.use(express.json({ limit: '10mb' }));
+  nestApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:8081'],
+  nestApp.enableCors({
+    origin: process.env.CORS_ORIGIN?.split(',') || ['*'],
     credentials: true,
   });
 
-  app.useGlobalPipes(
+  nestApp.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
@@ -30,13 +30,13 @@ async function bootstrap() {
     }),
   );
 
-  await app.init();
-  return serverlessExpress({ app: expressApp });
+  await nestApp.init();
+  return expressApp;
 }
 
-export default async function handler(req: any, res: any) {
-  if (!cachedHandler) {
-    cachedHandler = await bootstrap();
+export default async function handler(req: Request, res: Response) {
+  if (!app) {
+    app = await bootstrap();
   }
-  return cachedHandler(req, res);
+  app(req, res);
 }
