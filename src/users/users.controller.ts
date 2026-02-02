@@ -32,6 +32,13 @@ export class UsersController {
     return this.usersService.getUserProfile(userId);
   }
 
+  @Get(':userId/basic-info')
+  async getUserBasicInfo(@Param('userId') userId: string) {
+    // This endpoint is used for chat to get sender info
+    // Returns limited info and respects profile_visible setting
+    return await this.usersService.getUserBasicInfo(userId);
+  }
+
   @Patch(':userId/profile')
   async updateUserProfile(
     @Param('userId') userId: string,

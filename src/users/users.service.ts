@@ -104,6 +104,31 @@ export class UsersService {
     return data;
   }
 
+  /**
+   * Get basic user info for chat display
+   * Respects profile_visible setting - hides profile_image_url if false
+   */
+  async getUserBasicInfo(userId: string) {
+    const { data, error } = await this.supabase
+      .from('users')
+      .select('id, first_name, last_name, profile_image_url, profile_visible')
+      .eq('id', userId)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Hide profile image if profile_visible is false
+    return {
+      id: data.id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      profile_image_url: data.profile_visible === false ? null : data.profile_image_url,
+      profile_visible: data.profile_visible,
+    };
+  }
+
   async updateUserProfile(
     userId: string,
     updateProfileDto: UpdateUserProfileDto,
