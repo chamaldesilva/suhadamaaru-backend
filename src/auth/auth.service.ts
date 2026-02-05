@@ -86,6 +86,9 @@ export class AuthService {
           gender: 'male',
           auth_provider: 'supabase',
           role: 'teacher',
+          current_school_id: 1, // Assuming a default school ID
+          appointment_category_id: 1, // Assuming a default appointment category
+          service_bond_completed: true,
           is_verified: true,
           profile_completed: true,
           is_active: true,
