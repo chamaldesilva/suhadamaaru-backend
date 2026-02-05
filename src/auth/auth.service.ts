@@ -78,18 +78,20 @@ export class AuthService {
         await this.supabase.from('users').insert({
           id: userId,
           email: normalizedEmail,
+          nic: '123456789V',
+          mobile: '0771234567',
+          first_name: 'Apple',
+          last_name: 'Reviewer',
+          date_of_birth: '1990-01-01',
+          gender: 'male',
+          auth_provider: 'supabase',
           role: 'teacher',
           is_verified: true,
           profile_completed: true,
           is_active: true,
           last_login_at: new Date().toISOString(),
-          full_name: 'Apple Review Tester',
-          nic: '123456789V',
-          mobile_number: '+94771234567',
-          date_of_birth: '1990-01-01',
-          gender: 'other',
-          current_grade: 'primary',
-          medium_of_instruction: 'english',
+          current_grade: 'class_3_grade_2',
+          medium_of_instruction: 'sinhala',
         });
       }
 
