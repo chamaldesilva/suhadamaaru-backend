@@ -20,7 +20,7 @@ export class AuthService {
     const testEmail = this.configService.get('APPLE_REVIEW_TEST_EMAIL');
     if (testEmail && normalizedEmail === testEmail.toLowerCase()) {
       // For test account, we don't send real OTP
-      // The fixed OTP will be verified in verifyOtp method
+      // The fixed OTP will be verified in verifyOtp method below
       return {
         message: 'SignIn OTP sent successfully',
       };
