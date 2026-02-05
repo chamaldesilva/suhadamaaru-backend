@@ -14,9 +14,20 @@ export class AuthService {
 
   async signIn(signInDto: SignInDto) {
     const { email } = signInDto;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Special handling for Apple Review test account
+    const testEmail = this.configService.get('APPLE_REVIEW_TEST_EMAIL');
+    if (testEmail && normalizedEmail === testEmail.toLowerCase()) {
+      // For test account, we don't send real OTP
+      // The fixed OTP will be verified in verifyOtp method
+      return {
+        message: 'SignIn OTP sent successfully',
+      };
+    }
 
     const { error } = await this.supabase.auth.signInWithOtp({
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       options: {
         shouldCreateUser: true,
       },
@@ -33,10 +44,79 @@ export class AuthService {
 
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
     const { email, token } = verifyOtpDto;
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedToken = token.trim();
 
+    // Special handling for Apple Review test account
+    const testEmail = this.configService.get('APPLE_REVIEW_TEST_EMAIL');
+    const testOtp = this.configService.get('APPLE_REVIEW_TEST_OTP');
+
+    if (testEmail && testOtp && normalizedEmail === testEmail.toLowerCase()) {
+      // Verify the fixed OTP for test account
+      if (normalizedToken !== testOtp) {
+        throw new UnauthorizedException('Invalid OTP');
+      }
+
+      // Use a fixed UUID for test account
+      const userId = '00000000-0000-0000-0000-000000000001';
+
+      // Check if test user already exists
+      const { data: existingUser } = await this.supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (existingUser) {
+        // Update last login
+        await this.supabase
+          .from('users')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', userId);
+      } else {
+        // Create new test user with sample data
+        await this.supabase.from('users').insert({
+          id: userId,
+          email: normalizedEmail,
+          role: 'teacher',
+          is_verified: true,
+          profile_completed: true,
+          is_active: true,
+          last_login_at: new Date().toISOString(),
+          full_name: 'Apple Review Tester',
+          nic: '123456789V',
+          mobile_number: '+94771234567',
+          date_of_birth: '1990-01-01',
+          gender: 'other',
+          current_grade: 'primary',
+          medium_of_instruction: 'english',
+        });
+      }
+
+      // Generate JWT token
+      const accessToken = this.generateToken(userId, normalizedEmail);
+
+      // Get user profile
+      const { data: userProfile } = await this.supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      return {
+        accessToken,
+        user: userProfile,
+        session: {
+          access_token: accessToken,
+          user: userProfile,
+        },
+      };
+    }
+
+    // Normal OTP verification flow
     const { data, error } = await this.supabase.auth.verifyOtp({
-      email: email.toLowerCase().trim(),
-      token: token.trim(),
+      email: normalizedEmail,
+      token: normalizedToken,
       type: 'email',
     });
 

@@ -124,7 +124,8 @@ export class UsersService {
       id: data.id,
       first_name: data.first_name,
       last_name: data.last_name,
-      profile_image_url: data.profile_visible === false ? null : data.profile_image_url,
+      profile_image_url:
+        data.profile_visible === false ? null : data.profile_image_url,
       profile_visible: data.profile_visible,
     };
   }
