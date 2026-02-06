@@ -101,6 +101,9 @@ export class MatchingAlgorithmService {
           const request1 = eligibleRequests[i];
           const request2 = eligibleRequests[j];
 
+          // Skip if both requests belong to the same user
+          if (request1.user_id === request2.user_id) continue;
+
           // Check if they can be matched
           const compatibility = this.calculateCompatibility(request1, request2);
 
@@ -549,6 +552,14 @@ export class MatchingAlgorithmService {
           const reqA = eligibleRequests[i];
           const reqB = eligibleRequests[j];
           const reqC = eligibleRequests[k];
+
+          // Skip if any two requests belong to the same user
+          if (
+            reqA.user_id === reqB.user_id ||
+            reqB.user_id === reqC.user_id ||
+            reqA.user_id === reqC.user_id
+          )
+            continue;
 
           // Check if they form a valid circular swap
           // A wants B's school, B wants C's school, C wants A's school
