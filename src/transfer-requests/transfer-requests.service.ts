@@ -9,10 +9,14 @@ import {
   CreateTransferRequestDto,
   UpdateTransferRequestDto,
 } from './dto/transfer-request.dto';
+import { PurchasesService } from '../purchases/purchases.service';
 
 @Injectable()
 export class TransferRequestsService {
-  constructor(@Inject('SUPABASE_CLIENT') private supabase: SupabaseClient) {}
+  constructor(
+    @Inject('SUPABASE_CLIENT') private supabase: SupabaseClient,
+    private purchasesService: PurchasesService,
+  ) {}
 
   async createRequest(userId: string, createDto: CreateTransferRequestDto) {
     // Get user's current school and appointment details
@@ -230,7 +234,35 @@ export class TransferRequestsService {
     return data;
   }
 
-  async submitRequest(requestId: string, userId: string) {
+  async submitRequest(requestId: string, userId: string, purchaseId?: string) {
+    // Consume a purchase credit (use specific purchase or oldest available)
+    let consumedPurchase: any;
+    if (purchaseId) {
+      // Verify the specific purchase belongs to user and is validated
+      const { data: purchase } = await this.supabase
+        .from('purchases')
+        .select('*')
+        .eq('id', purchaseId)
+        .eq('user_id', userId)
+        .eq('status', 'validated')
+        .single();
+
+      if (!purchase) {
+        throw new BadRequestException('Invalid or already used purchase');
+      }
+      consumedPurchase = await this.purchasesService.consumePurchase(
+        userId,
+        requestId,
+      );
+    } else {
+      // Try to consume the oldest available credit
+      consumedPurchase = await this.purchasesService.consumePurchase(
+        userId,
+        requestId,
+      );
+    }
+
+    // Submit the transfer request
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 90);
 
@@ -247,11 +279,16 @@ export class TransferRequestsService {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
-    if (!data)
+    if (error || !data) {
+      // Rollback the purchase consumption if submission fails
+      if (consumedPurchase) {
+        await this.purchasesService.rollbackConsumption(consumedPurchase.id);
+      }
+      if (error) throw new Error(error.message);
       throw new NotFoundException(
         'Transfer request not found or already submitted',
       );
+    }
 
     return data;
   }

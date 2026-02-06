@@ -13,6 +13,7 @@ import { TransferRequestsModule } from './transfer-requests/transfer-requests.mo
 import { MatchesModule } from './matches/matches.module';
 import { ChatModule } from './chat/chat.module';
 import { AppVersionModule } from './app-version/app-version.module';
+import { PurchasesModule } from './purchases/purchases.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/response.interceptor';
 
@@ -37,6 +38,7 @@ import { TransformInterceptor } from './common/interceptors/response.interceptor
     MatchesModule,
     ChatModule,
     AppVersionModule,
+    PurchasesModule,
   ],
   controllers: [AppController],
   providers: [

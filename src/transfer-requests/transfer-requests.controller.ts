@@ -98,9 +98,14 @@ export class TransferRequestsController {
   @Post(':requestId/submit')
   async submitRequest(
     @Param('requestId') requestId: string,
+    @Body() body: { purchaseId?: string },
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.transferRequestsService.submitRequest(requestId, user.userId);
+    return this.transferRequestsService.submitRequest(
+      requestId,
+      user.userId,
+      body.purchaseId,
+    );
   }
 
   @Post(':requestId/withdraw')
